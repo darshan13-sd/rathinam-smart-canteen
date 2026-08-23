@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Rathinam Smart Canteen Hub | Multi-Canteen Ordering & Crowd Management</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            rathinam: {
+              purple: '#702670',
+              'purple-dark': '#501650',
+              'purple-light': '#fdf4fd',
+              orange: '#f26522',
+              'orange-light': '#fff7ed',
+              blue: '#0098d8',
+              'blue-light': '#f0f9ff',
+              green: '#90b83e',
+              'green-light': '#f7fee7',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- QR Code Generator -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body class="bg-slate-50 text-slate-800 pb-20 md:pb-8">
+
+  <!-- Audio Chime for Real-Time Ready Order Alerts -->
+  <audio id="order-ready-audio" preload="auto">
+    <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+  </audio>
+
+  <!-- TOP MAIN NAVBAR -->
+  <header class="sticky top-0 z-40 glass-nav border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 sm:h-20">
+        
+        <!-- Rathinam Logo & Branding -->
+        <div class="flex items-center gap-3 cursor-pointer" onclick="switchView('student'); selectStudentTab('home');">
+          <img src="/static/images/rathinam_logo.png" alt="Rathinam Group of Institutions" class="h-10 sm:h-12 w-auto object-contain drop-shadow-sm" />
+          <div class="hidden sm:block border-l border-slate-300 pl-3">
+            <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+              Smart Canteen Hub
+            </h1>
+            <p class="text-xs text-rathinam-purple font-semibold tracking-wide">
+              Rathinam Group of Institutions
+            </p>
+          </div>
+        </div>
+
+        <!-- Campus Crowd Live Radar Pill -->
+        <div id="top-campus-crowd-pill" class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-xs font-medium">
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
+          <span class="text-slate-600">Campus Crowd:</span>
+          <span id="campus-crowd-status-text" class="font-bold text-amber-600">MODERATE (Avg 7 min wait)</span>
+        </div>
+
+        <!-- Right Side: Quick Role Switcher & Cart -->
+        <div class="flex items-center gap-2 sm:gap-3">
+          
+          <!-- Active User Profile Badge & Switch Account Button -->
+          <div class="flex items-center gap-1.5 sm:gap-2">
+            <button id="user-profile-pill" onclick="openAuthModal()" class="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 text-xs sm:text-sm font-bold rounded-xl px-2.5 sm:px-3 py-1.5 shadow-sm hover:border-rathinam-purple hover:bg-purple-50/50 transition">
+              <div class="w-6 h-6 rounded-full bg-rathinam-purple text-white flex items-center justify-center text-[10px] font-black" id="user-avatar-initials">D</div>
+              <div class="text-left hidden sm:block">
+                <span id="nav-user-fullname" class="block leading-tight text-slate-900 font-extrabold text-xs">Darshan R</span>
+                <span id="nav-user-role-badge" class="block leading-tight text-[10px] text-rathinam-purple font-semibold">Student (CSE-A)</span>
+              </div>
+              <i data-lucide="lock" class="w-3.5 h-3.5 text-slate-400 sm:ml-1"></i>
+            </button>
+            <button onclick="logoutUser()" title="Logout" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition">
+              <i data-lucide="log-out" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <!-- Active Token Floating Badge (Student View) -->
+          <button id="active-token-nav-btn" onclick="openActiveTokenTracker()" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 text-rathinam-purple font-bold text-xs border border-purple-200 animate-bounce">
+            <i data-lucide="ticket" class="w-4 h-4"></i>
+            <span id="nav-token-number">CS-101</span>
+          </button>
+
+          <!-- Cart Button -->
+          <button id="nav-cart-btn" onclick="toggleCartDrawer()" class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rathinam-purple text-white font-medium text-xs sm:text-sm hover:bg-rathinam-purple-dark transition shadow-sm">
+            <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Cart</span>
+            <span id="nav-cart-count" class="bg-rathinam-orange text-white text-xs font-extrabold rounded-full px-1.5 py-0.2 min-w-[18px] text-center">0</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- NOTIFICATION TOAST CONTAINER -->
+  <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- MAIN APP CONTAINER -->
+  <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4">
+
+    <!-- ============================================================= -->
+    <!-- 1. STUDENT VIEW -->
+    <!-- ============================================================= -->
+    <div id="student-view" class="view-section">
+      
+      <!-- Student Top Tabs (Desktop) -->
+      <div class="hidden sm:flex items-center gap-2 border-b border-slate-200 mb-6">
+        <button onclick="selectStudentTab('home')" class="student-tab-btn active px-4 py-2.5 font-semibold text-sm border-b-2 border-rathinam-purple text-rathinam-purple flex items-center gap-2" data-tab="home">
+          <i data-lucide="home" class="w-4 h-4"></i> Home &amp; Radar
+        </button>
+        <button onclick="selectStudentTab('canteens')" class="student-tab-btn px-4 py-2.5 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-900 flex items-center gap-2" data-tab="canteens">
+          <i data-lucide="store" class="w-4 h-4"></i> All Canteens
+        </button>
+        <button onclick="selectStudentTab('search')" class="student-tab-btn px-4 py-2.5 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-900 flex items-center gap-2" data-tab="search">
+          <i data-lucide="search" class="w-4 h-4"></i> Search Dishes
+        </button>
+        <button onclick="selectStudentTab('orders')" class="student-tab-btn px-4 py-2.5 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-900 flex items-center gap-2" data-tab="orders">
+          <i data-lucide="clock" class="w-4 h-4"></i> Order History
+        </button>
+        <button onclick="selectStudentTab('announcements')" class="student-tab-btn px-4 py-2.5 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-900 flex items-center gap-2" data-tab="announcements">
+          <i data-lucide="megaphone" class="w-4 h-4"></i> Campus Bulletins
+        </button>
+      </div>
+
+      <!-- TAB 1: STUDENT HOME -->
+      <div id="student-tab-home" class="student-tab-content space-y-6">
+        
+        <!-- Welcome & Quick Action Card -->
+        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-800 text-white p-5 sm:p-7 shadow-lg">
+          <div class="relative z-10 max-w-2xl">
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-purple-200 text-xs font-semibold backdrop-blur-md mb-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Rathinam College Campus Portal
+            </div>
+            <h2 class="text-xl sm:text-3xl font-extrabold tracking-tight">
+              Order Fast. Skip the Queue. Enjoy Fresh Food.
+            </h2>
+            <p class="mt-1 text-xs sm:text-sm text-purple-200">
+              Welcome back, <span id="student-greeting-name" class="font-bold text-amber-300">Darshan</span>! Check real-time canteen crowds, pre-order with UPI/Cash, and collect with your digital token.
+            </p>
+            
+            <!-- Quick Dish Search Bar -->
+            <div class="mt-4 flex items-center bg-white rounded-xl p-1.5 shadow-md max-w-lg">
+              <i data-lucide="search" class="w-5 h-5 text-slate-400 ml-2"></i>
+              <input id="home-quick-search-input" type="text" placeholder="Search Chicken Biryani, Noodles, Lime Juice..." class="w-full px-3 py-1.5 text-xs sm:text-sm text-slate-800 focus:outline-none placeholder-slate-400" onkeyup="if(event.key==='Enter') executeGlobalSearch(this.value)" />
+              <button onclick="executeGlobalSearch(document.getElementById('home-quick-search-input').value)" class="bg-rathinam-purple text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-rathinam-purple-dark transition">
+                Search
+              </button>
+            </div>
+          </div>
+          
+          <!-- Decorative Background Elements -->
+          <div class="absolute -right-8 -bottom-8 w-48 h-48 bg-purple-500/20 rounded-full blur-2xl"></div>
+          <div class="absolute right-12 top-4 opacity-15 hidden sm:block">
+            <img src="/static/images/rathinam_logo.png" class="h-36 w-auto filter brightness-200" alt="bg" />
+          </div>
+        </div>
+
+        <!-- Active Order Status Card (If active order exists) -->
+        <div id="active-order-banner" class="hidden rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-4 sm:p-5 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-start sm:items-center gap-3.5">
+              <div class="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-lg shadow-md flex-shrink-0">
+                <i data-lucide="bell-ring" class="w-6 h-6 animate-pulse"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold uppercase tracking-wider text-amber-800">Active Order Token</span>
+                  <span id="banner-token-badge" class="px-2 py-0.5 rounded-md bg-purple-900 text-white font-extrabold text-xs">CS-101</span>
+                  <span id="banner-status-pill" class="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold text-xs">Preparing</span>
+                </div>
+                <p id="banner-canteen-info" class="text-xs text-slate-600 mt-0.5">Chat Stop • Estimated ready in <span id="banner-wait-time" class="font-bold text-slate-900">8 mins</span> (Queue #2)</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="openActiveTokenTracker()" class="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition flex items-center justify-center gap-1.5 shadow">
+                <i data-lucide="eye" class="w-4 h-4"></i> Live Token Progress
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Smart Recommendations & Insights -->
+        <div id="ai-recommendations-container" class="space-y-2"></div>
+
+        <!-- Real-Time Canteen Crowd Comparison Radar -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="activity" class="w-5 h-5 text-rathinam-purple"></i>
+                Live Canteen Crowd Radar
+              </h3>
+              <p class="text-xs text-slate-500">Compare real-time queue lengths and estimated wait times before ordering</p>
+            </div>
+            <button onclick="refreshCanteens()" class="text-xs font-semibold text-rathinam-purple hover:underline flex items-center gap-1">
+              <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh Live
+            </button>
+          </div>
+
+          <!-- Canteens Grid -->
+          <div id="home-canteens-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Populated dynamically via student.js -->
+          </div>
+        </div>
+
+        <!-- Latest CR & Canteen Bulletins -->
+        <div class="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="megaphone" class="w-4 h-4 text-rathinam-orange"></i>
+              Class Representative &amp; Canteen Updates
+            </h3>
+            <button onclick="selectStudentTab('announcements')" class="text-xs font-semibold text-rathinam-purple hover:underline">View All</button>
+          </div>
+          <div id="home-announcements-list" class="space-y-3">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB 2: ALL CANTEENS & MENU VIEW -->
+      <div id="student-tab-canteens" class="student-tab-content hidden space-y-6">
+        
+        <!-- Canteen Selection Header / Current Canteen -->
+        <div id="canteen-menu-header" class="hidden">
+          <div class="flex items-center justify-between mb-4">
+            <button onclick="backToCanteensList()" class="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-rathinam-purple hover:underline bg-purple-50 px-3 py-1.5 rounded-lg">
+              <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to All Canteens
+            </button>
+            <div id="selected-canteen-crowd-badge" class="px-3 py-1 rounded-full text-xs font-bold"></div>
+          </div>
+
+          <!-- Canteen Hero Card -->
+          <div id="selected-canteen-hero" class="relative rounded-2xl overflow-hidden bg-slate-900 text-white p-5 sm:p-6 mb-6 shadow-md">
+            <!-- Populated dynamically -->
+          </div>
+
+          <!-- Dietary Filter Pills -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-2 mb-4 text-xs font-semibold">
+            <button onclick="filterMenuCategory('ALL')" class="menu-filter-btn active px-3.5 py-1.5 rounded-full bg-slate-900 text-white" data-cat="ALL">All Dishes</button>
+            <button onclick="filterMenuCategory('VEG')" class="menu-filter-btn px-3.5 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200" data-cat="VEG">🌿 Pure Veg</button>
+            <button onclick="filterMenuCategory('NON_VEG')" class="menu-filter-btn px-3.5 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200" data-cat="NON_VEG">🍗 Non-Veg</button>
+            <button onclick="filterMenuCategory('EGG')" class="menu-filter-btn px-3.5 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200" data-cat="EGG">🍳 Egg Dishes</button>
+            <button onclick="filterMenuCategory('FAST')" class="menu-filter-btn px-3.5 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200" data-cat="FAST">⚡ Fast Prep (&lt; 5m)</button>
+          </div>
+
+          <!-- Menu Items Grid -->
+          <div id="canteen-menu-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Canteen List View (When no canteen is selected) -->
+        <div id="canteens-list-view" class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-bold text-slate-900">Rathinam College Food Outlets</h2>
+            <p class="text-xs text-slate-500">Select any canteen to view today's available items</p>
+          </div>
+          <div id="all-canteens-full-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB 3: GLOBAL SEARCH DISHES -->
+      <div id="student-tab-search" class="student-tab-content hidden space-y-6">
+        <div class="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm">
+          <h2 class="text-lg font-bold text-slate-900 mb-1">Search Food Across All Canteens</h2>
+          <p class="text-xs text-slate-500 mb-4">Find dishes, compare prices across Chat Stop, Z-Cafe, Seyon, CCT, and check availability instantly</p>
+          
+          <div class="relative">
+            <i data-lucide="search" class="w-5 h-5 absolute left-3.5 top-3 text-slate-400"></i>
+            <input id="global-search-input" type="text" placeholder="Type dish name (e.g. Chicken Biryani, Egg Rice, Noodles, Parotta, Curd Rice)..." class="w-full pl-11 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rathinam-purple focus:bg-white" oninput="executeGlobalSearch(this.value)" />
+          </div>
+
+          <!-- Quick Suggestion Tags -->
+          <div class="flex flex-wrap items-center gap-1.5 mt-3 text-xs">
+            <span class="text-slate-400 font-medium">Quick suggestions:</span>
+            <button onclick="setGlobalSearch('Chicken Biryani')" class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-purple-100 hover:text-rathinam-purple">Chicken Biryani</button>
+            <button onclick="setGlobalSearch('Egg Rice')" class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-purple-100 hover:text-rathinam-purple">Egg Rice</button>
+            <button onclick="setGlobalSearch('Chicken Noodles')" class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-purple-100 hover:text-rathinam-purple">Chicken Noodles</button>
+            <button onclick="setGlobalSearch('Kothu Parotta')" class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-purple-100 hover:text-rathinam-purple">Kothu Parotta</button>
+            <button onclick="setGlobalSearch('Curd Rice')" class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-purple-100 hover:text-rathinam-purple">Curd Rice</button>
+            <button onclick="setGlobalSearch('Lime Juice')" class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-purple-100 hover:text-rathinam-purple">Lime Juice</button>
+          </div>
+        </div>
+
+        <!-- Search Results Comparison Container -->
+        <div id="search-results-container" class="space-y-4">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- TAB 4: ORDER HISTORY -->
+      <div id="student-tab-orders" class="student-tab-content hidden space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Your Orders &amp; Tokens</h2>
+            <p class="text-xs text-slate-500">Track active orders, filter past receipts, or re-order your favorite meals</p>
+          </div>
+          <button onclick="loadStudentOrders()" class="text-xs font-semibold text-rathinam-purple hover:underline flex items-center gap-1">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Orders
+          </button>
+        </div>
+
+        <!-- Filters & Search Bar for Orders -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
+          <!-- Status Filter Tabs -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="filterStudentOrders('ALL')" id="order-filter-ALL" class="order-filter-pill px-3 py-1.5 rounded-full bg-slate-900 text-white text-xs font-bold transition">All Orders</button>
+            <button onclick="filterStudentOrders('ACTIVE')" id="order-filter-ACTIVE" class="order-filter-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold transition flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-purple-600 animate-pulse"></span> Active / Preparing
+            </button>
+            <button onclick="filterStudentOrders('READY')" id="order-filter-READY" class="order-filter-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold transition flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Ready for Pickup
+            </button>
+            <button onclick="filterStudentOrders('COMPLETED')" id="order-filter-COMPLETED" class="order-filter-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold transition">Completed</button>
+            <button onclick="filterStudentOrders('PARCEL')" id="order-filter-PARCEL" class="order-filter-pill px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold transition flex items-center gap-1">
+              📦 Takeaway / Parcel
+            </button>
+          </div>
+
+          <!-- Secondary Filters: Search + Canteen Dropdown -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100">
+            <div class="relative sm:col-span-2">
+              <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+              <input id="student-orders-search" type="text" placeholder="Search by Token, Dish name, or Order ID..." oninput="applyStudentOrderFilters()" class="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rathinam-purple focus:bg-white" />
+            </div>
+            <div>
+              <select id="student-orders-canteen-filter" onchange="applyStudentOrderFilters()" class="w-full py-1.5 px-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rathinam-purple font-semibold text-slate-700">
+                <option value="ALL">All Canteens</option>
+                <option value="1">Chat Stop</option>
+                <option value="2">Z-Cafe</option>
+                <option value="3">Seyon</option>
+                <option value="4">CCT</option>
+                <option value="5">Z-Cafe Juice</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="student-orders-list" class="space-y-4">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- TAB 5: ANNOUNCEMENTS -->
+      <div id="student-tab-announcements" class="student-tab-content hidden space-y-6">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Campus &amp; CR Announcements</h2>
+          <p class="text-xs text-slate-500">Class schedule updates, canteen advisories, and express counter notices</p>
+        </div>
+        <div id="student-announcements-full-list" class="space-y-3">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- 2. CANTEEN OWNER PORTAL -->
+    <!-- ============================================================= -->
+    <div id="owner-view" class="view-section hidden space-y-6">
+      
+      <!-- Owner Header & Switcher Banner -->
+      <div class="rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white p-5 sm:p-6 shadow-lg">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30 mb-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Kitchen Portal
+            </div>
+            <h2 id="owner-canteen-title" class="text-xl sm:text-2xl font-extrabold text-white">
+              Chat Stop — Kitchen &amp; Order Manager
+            </h2>
+            <p id="owner-canteen-desc" class="text-xs text-slate-300 mt-0.5">Manage live order queues, toggle item availability, and post temporary notices to students.</p>
+          </div>
+          
+          <!-- Canteen Status Controls -->
+          <div class="flex items-center gap-3">
+            <button id="owner-toggle-open-btn" onclick="toggleCanteenOpenStatus()" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition shadow">
+              🟢 Canteen is OPEN
+            </button>
+            <button onclick="openBroadcastModal()" class="px-4 py-2 rounded-xl bg-rathinam-purple text-white text-xs font-bold hover:bg-rathinam-purple-dark transition shadow flex items-center gap-1.5">
+              <i data-lucide="megaphone" class="w-4 h-4"></i> Post Notice
+            </button>
+          </div>
+        </div>
+
+        <!-- Canteen Metrics Strip -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-700/60">
+          <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/50">
+            <span class="text-xs text-slate-400 font-medium">Active Orders</span>
+            <p id="owner-metric-active" class="text-xl font-extrabold text-amber-400 mt-0.5">3</p>
+          </div>
+          <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/50">
+            <span class="text-xs text-slate-400 font-medium">Ready for Pickup</span>
+            <p id="owner-metric-ready" class="text-xl font-extrabold text-emerald-400 mt-0.5">1</p>
+          </div>
+          <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/50">
+            <span class="text-xs text-slate-400 font-medium">Current Crowd</span>
+            <p id="owner-metric-crowd" class="text-xl font-extrabold text-orange-400 mt-0.5">HIGH (12m)</p>
+          </div>
+          <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/50">
+            <span class="text-xs text-slate-400 font-medium">Today's Revenue</span>
+            <p id="owner-metric-rev" class="text-xl font-extrabold text-white mt-0.5">₹ 3,480</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Owner Tabs: Orders Kanban vs Menu Stock Management -->
+      <div class="flex items-center gap-3 border-b border-slate-200">
+        <button onclick="selectOwnerTab('orders')" class="owner-tab-btn active px-4 py-2.5 font-bold text-sm border-b-2 border-rathinam-purple text-rathinam-purple flex items-center gap-2" data-tab="orders">
+          <i data-lucide="list-ordered" class="w-4 h-4"></i> Live Order Queue &amp; Tokens
+        </button>
+        <button onclick="selectOwnerTab('menu')" class="owner-tab-btn px-4 py-2.5 font-bold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-900 flex items-center gap-2" data-tab="menu">
+          <i data-lucide="utensils" class="w-4 h-4"></i> Menu Stock &amp; Pricing
+        </button>
+      </div>
+
+      <!-- OWNER TAB 1: ORDERS KANBAN QUEUE -->
+      <div id="owner-tab-orders" class="owner-tab-content space-y-4">
+        
+        <!-- Filter Tabs for Owner Queue -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5 text-xs font-bold overflow-x-auto pb-1">
+            <button onclick="filterOwnerOrders('ALL')" class="owner-queue-filter-btn active px-3 py-1.5 rounded-lg bg-slate-900 text-white" data-status="ALL">All Orders</button>
+            <button onclick="filterOwnerOrders('PAYMENT_CONFIRMED')" class="owner-queue-filter-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" data-status="PAYMENT_CONFIRMED">⏳ New / Paid</button>
+            <button onclick="filterOwnerOrders('PREPARING')" class="owner-queue-filter-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" data-status="PREPARING">🍳 Preparing</button>
+            <button onclick="filterOwnerOrders('READY_FOR_PICKUP')" class="owner-queue-filter-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" data-status="READY_FOR_PICKUP">🔔 Ready</button>
+            <button onclick="filterOwnerOrders('COMPLETED')" class="owner-queue-filter-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" data-status="COMPLETED">✅ Completed</button>
+          </div>
+          <button onclick="loadOwnerOrders()" class="text-xs font-bold text-rathinam-purple hover:underline flex items-center gap-1">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Refresh
+          </button>
+        </div>
+
+        <!-- Orders Kanban Board Grid -->
+        <div id="owner-orders-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Populated dynamically via owner.js -->
+        </div>
+
+      </div>
+
+      <!-- OWNER TAB 2: MENU STOCK & AVAILABILITY -->
+      <div id="owner-tab-menu" class="owner-tab-content hidden space-y-4">
+        <div class="flex items-center justify-between bg-white rounded-2xl p-4 border border-slate-200">
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Today's Menu &amp; Live Stock Switch</h3>
+            <p class="text-xs text-slate-500">Toggle dishes In/Out of Stock in real-time without reloading the page</p>
+          </div>
+          <button onclick="openAddDishModal()" class="px-4 py-2 rounded-xl bg-rathinam-purple text-white text-xs font-bold hover:bg-rathinam-purple-dark transition flex items-center gap-1.5 shadow">
+            <i data-lucide="plus" class="w-4 h-4"></i> Add New Dish
+          </button>
+        </div>
+
+        <div id="owner-menu-items-table" class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <!-- Populated dynamically via owner.js -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- 3. CLASS REPRESENTATIVE (CR) PORTAL -->
+    <!-- ============================================================= -->
+    <div id="cr-view" class="view-section hidden space-y-6">
+      
+      <!-- CR Header -->
+      <div class="rounded-2xl bg-gradient-to-r from-teal-900 to-emerald-900 text-white p-5 sm:p-6 shadow-lg">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-500/30 mb-2">
+              <i data-lucide="message-square" class="w-3.5 h-3.5"></i> Class Representative Portal
+            </div>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-white">
+              Campus Canteen Crowd Advisor &amp; Broadcast Hub
+            </h2>
+            <p class="text-xs text-teal-200 mt-0.5">Advise your classmates on crowd levels, lunch timings, and generate 1-click WhatsApp Broadcast links.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- CR Action Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left 2 Cols: WhatsApp Broadcast Generator -->
+        <div class="lg:col-span-2 space-y-5">
+          <div class="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="share-2" class="w-5 h-5 text-emerald-600"></i>
+                Smart WhatsApp Broadcast Generator
+              </h3>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Official WhatsApp Format</span>
+            </div>
+
+            <!-- Parameters Form -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Target Class / Group</label>
+                <select id="cr-broadcast-class" class="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" onchange="generateCRWhatsAppMessage()">
+                  <option value="ECE-A">ECE-A (3rd Year)</option>
+                  <option value="CSE-B">CSE-B (2nd Year)</option>
+                  <option value="IT-A">IT-A (3rd Year)</option>
+                  <option value="MECH-A">Mech-A (Final Year)</option>
+                  <option value="MBA-1">MBA (1st Year)</option>
+                  <option value="ALL">Entire Campus</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Class Dismissal / Lunch Time</label>
+                <input id="cr-broadcast-time" type="text" value="12:30 PM" class="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500" oninput="generateCRWhatsAppMessage()" />
+              </div>
+            </div>
+
+            <!-- Message Preview Box -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Generated WhatsApp Message Preview</label>
+              <div id="cr-message-preview" class="w-full p-4 rounded-xl bg-slate-900 text-emerald-300 font-mono text-xs whitespace-pre-wrap border border-slate-800 leading-relaxed min-h-[140px]">
+                Loading crowd data &amp; formatting message...
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap items-center gap-3 pt-2">
+              <a id="cr-whatsapp-share-btn" href="#" target="_blank" class="flex-1 min-w-[200px] px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition">
+                <i data-lucide="send" class="w-4 h-4"></i> Open in WhatsApp &amp; Share
+              </a>
+              <button onclick="copyCRWhatsAppMessage()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 transition">
+                <i data-lucide="copy" class="w-4 h-4"></i> Copy Text
+              </button>
+              <button onclick="postCRInAppAnnouncement()" class="px-4 py-2.5 rounded-xl bg-rathinam-purple hover:bg-rathinam-purple-dark text-white font-bold text-xs flex items-center gap-1.5 transition">
+                <i data-lucide="bell" class="w-4 h-4"></i> Post to App Feed
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Col: Live Campus Crowd Radar for CR -->
+        <div class="space-y-4">
+          <div class="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-rathinam-purple"></i>
+              Live Canteen Load Radar
+            </h3>
+            <div id="cr-canteen-radar-list" class="space-y-3">
+              <!-- Populated dynamically via cr.js -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- 4. CAMPUS ADMINISTRATOR DASHBOARD -->
+    <!-- ============================================================= -->
+    <div id="admin-view" class="view-section hidden space-y-6">
+      
+      <!-- Admin Header -->
+      <div class="rounded-2xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white p-5 sm:p-7 shadow-lg">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs font-bold border border-purple-500/30 mb-2">
+              <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Central Campus Administration
+            </div>
+            <h2 class="text-xl sm:text-2xl font-black text-white">
+              Rathinam Smart Canteen Operations &amp; AI Analytics
+            </h2>
+            <p class="text-xs text-slate-300 mt-0.5">System-wide monitoring of all 5 canteens, revenue tracking, crowd forecasts, and demand predictions.</p>
+          </div>
+          
+          <button onclick="loadAdminDashboard()" class="px-4 py-2 rounded-xl bg-rathinam-orange text-white text-xs font-bold hover:bg-orange-600 transition flex items-center gap-1.5 shadow">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh Analytics
+          </button>
+        </div>
+
+        <!-- Admin Summary Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6 pt-5 border-t border-slate-800">
+          <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+            <span class="text-xs text-slate-400 font-medium">Total Orders</span>
+            <p id="admin-stat-orders" class="text-lg font-black text-white mt-0.5">143</p>
+          </div>
+          <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+            <span class="text-xs text-slate-400 font-medium">Total Revenue</span>
+            <p id="admin-stat-rev" class="text-lg font-black text-emerald-400 mt-0.5">₹ 18,940</p>
+          </div>
+          <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+            <span class="text-xs text-slate-400 font-medium">Active Canteens</span>
+            <p id="admin-stat-canteens" class="text-lg font-black text-white mt-0.5">5</p>
+          </div>
+          <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+            <span class="text-xs text-slate-400 font-medium">Active Orders</span>
+            <p id="admin-stat-active" class="text-lg font-black text-amber-400 mt-0.5">4</p>
+          </div>
+          <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+            <span class="text-xs text-slate-400 font-medium">Registered Students</span>
+            <p id="admin-stat-students" class="text-lg font-black text-blue-400 mt-0.5">852</p>
+          </div>
+          <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+            <span class="text-xs text-slate-400 font-medium">Peak Hour</span>
+            <p class="text-lg font-black text-purple-300 mt-0.5">12:30 PM</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts & Visual Analytics Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Chart 1: Peak Hours Ordering Rush Curve -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="bar-chart-3" class="w-4 h-4 text-rathinam-purple"></i>
+              Campus Hourly Crowd &amp; Peak Rush Forecast
+            </h3>
+            <span class="text-xs font-bold text-slate-500">Live AI Forecast</span>
+          </div>
+          <div class="h-64 relative">
+            <canvas id="admin-crowd-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Canteen Revenue & Orders Breakdown -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-rathinam-orange"></i>
+              Canteen Revenue &amp; Order Volume Comparison
+            </h3>
+            <span class="text-xs font-bold text-slate-500">Today</span>
+          </div>
+          <div class="h-64 relative">
+            <canvas id="admin-revenue-chart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- AI Demand Forecasting Table (Eliminating Food Waste) -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="sparkles" class="w-5 h-5 text-amber-500"></i>
+              AI Food Demand Prediction for Tomorrow
+            </h3>
+            <p class="text-xs text-slate-500">Predictive batch sizing to prevent student shortages and eliminate cafeteria food wastage</p>
+          </div>
+          <span class="px-3 py-1 rounded-full bg-purple-100 text-rathinam-purple font-extrabold text-xs">
+            ML Model Accuracy: 94.2%
+          </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
+              <tr>
+                <th class="py-3 px-4">Dish Name</th>
+                <th class="py-3 px-4">Canteen</th>
+                <th class="py-3 px-4">Price</th>
+                <th class="py-3 px-4">Predicted Demand</th>
+                <th class="py-3 px-4">Recommended Batch</th>
+                <th class="py-3 px-4">Trend &amp; Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="admin-ai-demand-tbody" class="divide-y divide-slate-100">
+              <!-- Populated dynamically via admin.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- System Activity & Live Orders Stream -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="list-checks" class="w-4 h-4 text-emerald-600"></i>
+          Campus-Wide Order Audit Stream
+        </h3>
+        <div id="admin-live-orders-stream" class="space-y-2">
+          <!-- Populated dynamically via admin.js -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ============================================================= -->
+  <!-- MOBILE BOTTOM NAVIGATION (STUDENT VIEW) -->
+  <!-- ============================================================= -->
+  <div id="mobile-bottom-bar" class="sm:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-slate-200 z-40 mobile-nav-bar">
+    <div class="grid grid-cols-5 h-14">
+      <button onclick="selectStudentTab('home')" class="mobile-nav-item active flex flex-col items-center justify-center text-rathinam-purple" data-tab="home">
+        <i data-lucide="home" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold mt-0.5">Home</span>
+      </button>
+      <button onclick="selectStudentTab('canteens')" class="mobile-nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-700" data-tab="canteens">
+        <i data-lucide="store" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold mt-0.5">Canteens</span>
+      </button>
+      <button onclick="selectStudentTab('search')" class="mobile-nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-700" data-tab="search">
+        <i data-lucide="search" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold mt-0.5">Search</span>
+      </button>
+      <button onclick="selectStudentTab('orders')" class="mobile-nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-700" data-tab="orders">
+        <i data-lucide="clock" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold mt-0.5">Orders</span>
+      </button>
+      <button onclick="selectStudentTab('announcements')" class="mobile-nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-700" data-tab="announcements">
+        <i data-lucide="megaphone" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold mt-0.5">Alerts</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: CART & CHECKOUT DRAWER -->
+  <!-- ============================================================= -->
+  <div id="cart-drawer" class="fixed inset-0 z-50 overflow-hidden hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onclick="toggleCartDrawer()"></div>
+    <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      <div class="w-screen max-w-md bg-white shadow-2xl flex flex-col animate-slide-up">
+        
+        <!-- Cart Header -->
+        <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-rathinam-purple text-white flex items-center justify-center">
+              <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h2 class="text-base font-bold text-slate-900">Your Food Cart</h2>
+              <p id="cart-canteen-name" class="text-xs text-rathinam-purple font-semibold">Chat Stop</p>
+            </div>
+          </div>
+          <button onclick="toggleCartDrawer()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Cart Items List -->
+        <div id="cart-items-list" class="flex-1 overflow-y-auto p-5 space-y-4">
+          <!-- Populated dynamically -->
+        </div>
+
+        <!-- Cart Footer & Checkout -->
+        <div id="cart-footer" class="border-t border-slate-200 p-5 space-y-3 bg-slate-50">
+          
+          <!-- Parcel / Packing Option -->
+          <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input id="cart-parcel-checkbox" type="checkbox" onchange="updateCartParcelToggle(this.checked)" class="w-4 h-4 text-rathinam-purple rounded focus:ring-rathinam-purple" />
+              <span class="text-xs font-bold text-slate-800">Pack All Items as Parcel</span>
+            </label>
+            <span id="cart-parcel-fee-label" class="text-xs font-bold text-slate-600">+ ₹10 / item</span>
+          </div>
+
+          <!-- Order Notes -->
+          <div>
+            <input id="cart-notes-input" type="text" placeholder="Cooking instructions (e.g. less spicy, extra gravy)..." class="w-full text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rathinam-purple" />
+          </div>
+
+          <!-- Bill Breakdown -->
+          <div class="space-y-1.5 text-xs text-slate-600 pt-1">
+            <div class="flex justify-between">
+              <span>Items Subtotal</span>
+              <span id="cart-subtotal-val" class="font-semibold text-slate-900">₹ 0</span>
+            </div>
+            <div class="flex justify-between">
+              <span id="cart-parcel-label">Packaging / Parcel</span>
+              <span id="cart-parcel-val" class="font-semibold text-slate-900">₹ 0</span>
+            </div>
+            <div class="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-slate-200">
+              <span>Total Payable</span>
+              <span id="cart-total-val" class="text-rathinam-purple">₹ 0</span>
+            </div>
+          </div>
+
+          <!-- Payment Selection Buttons -->
+          <div id="cart-checkout-actions" class="grid grid-cols-2 gap-2 pt-2">
+            <button onclick="startCheckout('UPI')" class="w-full py-2.5 rounded-xl bg-rathinam-purple text-white font-extrabold text-xs hover:bg-rathinam-purple-dark transition shadow flex items-center justify-center gap-1.5">
+              <i data-lucide="qr-code" class="w-4 h-4"></i> Pay via UPI
+            </button>
+            <button onclick="startCheckout('CASH')" class="w-full py-2.5 rounded-xl bg-slate-900 text-white font-extrabold text-xs hover:bg-slate-800 transition shadow flex items-center justify-center gap-1.5">
+              <i data-lucide="banknote" class="w-4 h-4"></i> Cash at Counter
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: MOCK UPI PAYMENT SCREEN -->
+  <!-- ============================================================= -->
+  <div id="upi-payment-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4 animate-slide-up">
+      
+      <!-- UPI Header -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <img src="/static/images/rathinam_logo.png" class="h-6 w-auto" alt="Rathinam" />
+          <span class="text-xs font-bold text-slate-800">Campus UPI Gateway</span>
+        </div>
+        <button onclick="closeUPIModal()" class="text-slate-400 hover:text-slate-700">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Amount to Pay -->
+      <div>
+        <p class="text-xs text-slate-500">Scan QR or choose UPI App</p>
+        <h3 id="upi-modal-amount" class="text-3xl font-black text-slate-900 mt-1">₹ 210</h3>
+        <p id="upi-modal-canteen" class="text-xs font-semibold text-rathinam-purple">Paying to Chat Stop</p>
+      </div>
+
+      <!-- Dynamic QR Code Container -->
+      <div class="flex justify-center p-3 bg-slate-50 rounded-2xl border border-slate-200">
+        <div id="upi-qrcode-box"></div>
+      </div>
+
+      <!-- Simulated UPI Apps Buttons -->
+      <div class="grid grid-cols-4 gap-2 text-xs font-bold">
+        <button onclick="simulateAppPayment('GPay')" class="p-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">GPay</button>
+        <button onclick="simulateAppPayment('PhonePe')" class="p-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100">PhonePe</button>
+        <button onclick="simulateAppPayment('Paytm')" class="p-2 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100">Paytm</button>
+        <button onclick="simulateAppPayment('BHIM')" class="p-2 rounded-xl bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100">BHIM</button>
+      </div>
+
+      <!-- Fast Simulator Button -->
+      <button id="upi-confirm-btn" onclick="executeMockUPIConfirmation()" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-md transition flex items-center justify-center gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4"></i> Simulate Successful Payment
+      </button>
+
+      <p class="text-[10px] text-slate-400">Prototype Mock Payment Engine • Auto-generates Token upon confirmation</p>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: DIGITAL TOKEN & LIVE TRACKER -->
+  <!-- ============================================================= -->
+  <div id="token-tracker-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-slide-up max-h-[90vh] overflow-y-auto">
+      
+      <!-- Tracker Header -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <img src="/static/images/rathinam_logo.png" class="h-6 w-auto" alt="logo" />
+          <span class="text-xs font-bold text-slate-800">Live Order &amp; Token Tracker</span>
+        </div>
+        <button onclick="closeTokenTrackerModal()" class="text-slate-400 hover:text-slate-700">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Glowing Digital Token Display -->
+      <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-900 via-indigo-900 to-purple-800 text-white p-6 text-center shadow-lg">
+        <span class="text-xs font-bold tracking-widest text-purple-200 uppercase">Your Digital Token</span>
+        <div id="tracker-token-number" class="text-5xl sm:text-6xl font-black text-amber-300 my-1 tracking-tight drop-shadow">
+          CS-101
+        </div>
+        <p id="tracker-order-number" class="text-xs font-mono text-purple-200">Order ID: RAT-2026-000184</p>
+        <p id="tracker-canteen-name" class="text-sm font-bold text-white mt-1">Chat Stop (Near Main Block)</p>
+      </div>
+
+      <!-- 5-Stage Animated Progress Stepper -->
+      <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+        <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Live Order Status</h4>
+        
+        <div class="space-y-4">
+          
+          <!-- Step 1: Order Placed -->
+          <div id="step-1" class="flex items-center gap-3 stepper-item completed">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs stepper-circle bg-emerald-600 text-white">✓</div>
+            <div>
+              <p class="text-xs font-bold text-slate-900">1. Order Placed</p>
+              <p class="text-[10px] text-slate-500">Order recorded in kitchen system</p>
+            </div>
+          </div>
+
+          <!-- Step 2: Payment Confirmed -->
+          <div id="step-2" class="flex items-center gap-3 stepper-item completed">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs stepper-circle bg-emerald-600 text-white">✓</div>
+            <div>
+              <p class="text-xs font-bold text-slate-900">2. Payment Confirmed</p>
+              <p id="tracker-payment-label" class="text-[10px] text-slate-500">UPI Paid (TXN Verified)</p>
+            </div>
+          </div>
+
+          <!-- Step 3: Preparing in Kitchen -->
+          <div id="step-3" class="flex items-center gap-3 stepper-item active">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs stepper-circle bg-purple-900 text-white animate-pulse">🍳</div>
+            <div>
+              <p class="text-xs font-bold text-slate-900">3. Cooking &amp; Packing</p>
+              <p class="text-[10px] text-slate-500">Chef is preparing your fresh order</p>
+            </div>
+          </div>
+
+          <!-- Step 4: Ready for Pickup -->
+          <div id="step-4" class="flex items-center gap-3 stepper-item text-slate-400">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs stepper-circle bg-slate-200 text-slate-600">4</div>
+            <div>
+              <p class="text-xs font-bold text-slate-700">4. Ready for Pickup</p>
+              <p class="text-[10px] text-slate-500">Show token at counter to collect</p>
+            </div>
+          </div>
+
+          <!-- Step 5: Completed -->
+          <div id="step-5" class="flex items-center gap-3 stepper-item text-slate-400">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs stepper-circle bg-slate-200 text-slate-600">5</div>
+            <div>
+              <p class="text-xs font-bold text-slate-700">5. Completed &amp; Collected</p>
+              <p class="text-[10px] text-slate-500">Order successfully handed over</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Queue Position & Estimated Time Strip -->
+      <div class="grid grid-cols-2 gap-3 text-center">
+        <div class="p-3 bg-purple-50 border border-purple-200 rounded-xl">
+          <span class="text-[10px] font-bold text-purple-700 uppercase">Queue Position</span>
+          <p id="tracker-queue-pos" class="text-xl font-black text-rathinam-purple"># 2</p>
+          <span class="text-[10px] text-slate-500">1 order ahead of you</span>
+        </div>
+        <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <span class="text-[10px] font-bold text-amber-700 uppercase">Estimated Wait</span>
+          <p id="tracker-wait-mins" class="text-xl font-black text-amber-600">~ 8 mins</p>
+          <span class="text-[10px] text-slate-500">Freshly cooked</span>
+        </div>
+      </div>
+
+      <!-- Itemized Ordered Items -->
+      <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+        <div class="font-bold text-slate-800 mb-2">Order Items</div>
+        <div id="tracker-items-list" class="space-y-1 text-slate-600"></div>
+        <div class="flex justify-between font-bold text-slate-900 pt-2 border-t border-slate-200 mt-2">
+          <span>Total Amount</span>
+          <span id="tracker-total-amount" class="text-rathinam-purple">₹ 210</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2">
+        <button onclick="openReceiptModal(currentTrackedOrderId)" class="flex-1 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition flex items-center justify-center gap-1.5">
+          <i data-lucide="receipt" class="w-4 h-4"></i> View Digital Receipt
+        </button>
+        <button onclick="closeTokenTrackerModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200">
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: DIGITAL RECEIPT -->
+  <!-- ============================================================= -->
+  <div id="receipt-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-slide-up border border-slate-200">
+      
+      <!-- Receipt Header -->
+      <div class="text-center border-b border-dashed border-slate-300 pb-4 space-y-1">
+        <img src="/static/images/rathinam_logo.png" class="h-10 mx-auto" alt="logo" />
+        <h3 class="text-base font-black text-slate-900 uppercase tracking-wide">Rathinam Smart Canteen</h3>
+        <p id="receipt-canteen-name" class="text-xs font-bold text-rathinam-purple">Chat Stop (Near Main Block)</p>
+        <p id="receipt-datetime" class="text-[10px] text-slate-400 font-mono">23-Aug-2026 12:45 PM</p>
+      </div>
+
+      <!-- Receipt Meta -->
+      <div class="grid grid-cols-2 text-xs py-1 border-b border-slate-100 gap-y-1">
+        <div><span class="text-slate-500">Order ID:</span> <span id="receipt-order-id" class="font-mono font-bold text-slate-800">RAT-2026-000184</span></div>
+        <div class="text-right"><span class="text-slate-500">Token:</span> <span id="receipt-token-number" class="font-bold text-rathinam-purple text-sm">CS-101</span></div>
+        <div><span class="text-slate-500">Student:</span> <span id="receipt-student-name" class="font-semibold text-slate-800">Darshan (CSE-A)</span></div>
+        <div class="text-right"><span class="text-slate-500">Payment:</span> <span id="receipt-payment-method" class="font-bold text-emerald-600">UPI (PAID)</span></div>
+      </div>
+
+      <!-- Receipt Item Rows -->
+      <div id="receipt-items-table" class="space-y-1.5 text-xs"></div>
+
+      <!-- Receipt Total Box -->
+      <div class="border-t border-dashed border-slate-300 pt-3 space-y-1 text-xs text-slate-600">
+        <div class="flex justify-between"><span>Subtotal:</span><span id="receipt-subtotal" class="font-semibold">₹ 200</span></div>
+        <div class="flex justify-between"><span>Parcel Charge:</span><span id="receipt-parcel" class="font-semibold">₹ 10</span></div>
+        <div class="flex justify-between text-sm font-black text-slate-900 pt-1 border-t border-slate-200">
+          <span>Grand Total:</span>
+          <span id="receipt-grand-total" class="text-rathinam-purple">₹ 210</span>
+        </div>
+      </div>
+
+      <div class="text-center pt-2 text-[10px] text-slate-400">
+        Thank you for ordering at Rathinam Campus Canteens! Please collect your food promptly when token is called.
+      </div>
+
+      <div class="flex items-center gap-2 pt-2">
+        <button onclick="window.print()" class="flex-1 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 flex items-center justify-center gap-1.5">
+          <i data-lucide="printer" class="w-4 h-4"></i> Print Receipt
+        </button>
+        <button onclick="closeReceiptModal()" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200">
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: CANTEEN SWITCH COLLISION WARNING -->
+  <!-- ============================================================= -->
+  <div id="canteen-collision-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4 animate-slide-up">
+      <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 mx-auto flex items-center justify-center">
+        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+      </div>
+      <h3 class="text-base font-bold text-slate-900">Replace Cart Items?</h3>
+      <p id="collision-modal-msg" class="text-xs text-slate-600">
+        You already have items in your cart from <span class="font-bold">Chat Stop</span>. An order can belong to only one canteen at a time.
+      </p>
+      <div class="flex items-center gap-2 pt-2">
+        <button onclick="confirmCanteenSwitch()" class="flex-1 py-2.5 rounded-xl bg-rathinam-purple text-white font-bold text-xs hover:bg-rathinam-purple-dark transition">
+          Clear &amp; Add New Item
+        </button>
+        <button onclick="closeCollisionModal()" class="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200">
+          Keep Old Cart
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: BROADCAST ANNOUNCEMENT (OWNER & CR) -->
+  <!-- ============================================================= -->
+  <div id="broadcast-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-slide-up">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="megaphone" class="w-4 h-4 text-rathinam-purple"></i> Post Announcement
+        </h3>
+        <button onclick="closeBroadcastModal()" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Headline / Title</label>
+          <input id="broadcast-title-input" type="text" placeholder="e.g. Extra Counter Opened for Lunch Rush" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Announcement Message</label>
+          <textarea id="broadcast-content-input" rows="3" placeholder="Enter message details for students..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none"></textarea>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Target Audience</label>
+          <select id="broadcast-target-select" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none">
+            <option value="ALL">All Campus Students</option>
+            <option value="ECE-A">ECE-A Only</option>
+            <option value="CSE-B">CSE-B Only</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 pt-2">
+        <button onclick="submitBroadcastAnnouncement()" class="flex-1 py-2.5 rounded-xl bg-rathinam-purple text-white font-bold text-xs hover:bg-rathinam-purple-dark transition shadow">
+          Publish Notice
+        </button>
+        <button onclick="closeBroadcastModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: ADD NEW MENU DISH (FOR CANTEEN OWNER) -->
+  <!-- ============================================================= -->
+  <div id="add-dish-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-slide-up">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-5 h-5 text-rathinam-purple"></i> Add New Menu Dish
+        </h3>
+        <button onclick="closeAddDishModal()" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Dish Name</label>
+          <input id="new-dish-name" type="text" placeholder="e.g. Butter Chicken Noodles, Paneer Butter Rice" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none" />
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Price (₹)</label>
+            <input id="new-dish-price" type="number" placeholder="100" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none" />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Prep Time (mins)</label>
+            <input id="new-dish-prep" type="number" placeholder="6" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Category</label>
+            <select id="new-dish-category" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none font-semibold">
+              <option value="Biryani">Biryani</option>
+              <option value="Fried Rice">Fried Rice</option>
+              <option value="Noodles">Noodles</option>
+              <option value="Rice">Rice</option>
+              <option value="Fast Food">Fast Food</option>
+              <option value="Beverages">Beverages</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Diet Type</label>
+            <select id="new-dish-diet" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none font-semibold">
+              <option value="NON_VEG">🍗 Non-Veg</option>
+              <option value="VEG">🌿 Pure Veg</option>
+              <option value="EGG">🍳 Egg</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Food Image URL / Path</label>
+          <input id="new-dish-image" type="text" placeholder="/static/images/foods/chicken_biryani.jpg" value="/static/images/foods/chicken_biryani.jpg" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Description</label>
+          <textarea id="new-dish-desc" rows="2" placeholder="Delicious chef special..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none"></textarea>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 pt-2">
+        <button onclick="submitAddNewDish()" class="flex-1 py-2.5 rounded-xl bg-rathinam-purple text-white font-bold text-xs hover:bg-rathinam-purple-dark transition shadow">
+          Add Dish to Menu
+        </button>
+        <button onclick="closeAddDishModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- MODAL: SECURE LOGIN & ACCOUNT SWITCH (PASSWORD REQUIRED) -->
+  <!-- ============================================================= -->
+  <div id="auth-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl space-y-4 animate-slide-up border border-slate-200">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <img src="/static/images/rathinam_logo.png" class="h-8 w-auto" alt="Rathinam" />
+          <div>
+            <h3 class="text-base font-extrabold text-slate-900 leading-tight">Account Authentication</h3>
+            <p class="text-[11px] text-slate-500 font-medium">Password required to switch or log in</p>
+          </div>
+        </div>
+        <button onclick="closeAuthModal()" class="text-slate-400 hover:text-slate-700 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Account Selector Picker -->
+      <div class="space-y-1.5">
+        <label class="block text-xs font-bold text-slate-700">1. Select Target Account</label>
+        <select id="auth-account-select" onchange="handleAccountSelection(this.value)" class="w-full text-xs font-bold bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-rathinam-purple">
+          <optgroup label="👨‍🎓 Students">
+            <option value="darshan">Darshan R (CSE-A Student)</option>
+            <option value="priya_k">Priya K (ECE-B Student)</option>
+          </optgroup>
+          <optgroup label="🏪 Canteen Owners (Kitchen Desk)">
+            <option value="chatstop_owner">Chat Stop Owner (Canteen 1)</option>
+            <option value="zcafe_owner">Z-Cafe Owner (Canteen 2)</option>
+            <option value="seyon_owner">Seyon Owner (Canteen 3)</option>
+            <option value="cct_owner">CCT Owner (Canteen 4)</option>
+            <option value="zedcoffee_owner">Z-Cafe Juice Owner (Canteen 5)</option>
+          </optgroup>
+          <optgroup label="📢 Class Representatives">
+            <option value="cr_ece">Arjun M (ECE-A Class Rep)</option>
+            <option value="cr_cse">Sneha R (CSE-B Class Rep)</option>
+          </optgroup>
+          <optgroup label="🛡️ Campus Administration">
+            <option value="admin">Campus Administrator</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Username and Password Inputs -->
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Username</label>
+          <input id="auth-username-input" type="text" value="darshan" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 font-mono text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none font-bold text-slate-800" readonly />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+            <span>Enter Password</span>
+            <span id="auth-password-hint" class="text-[10px] font-semibold text-slate-400">Default: password123</span>
+          </label>
+          <div class="relative">
+            <input id="auth-password-input" type="password" placeholder="Enter account password..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-rathinam-purple focus:outline-none pr-10" onkeyup="if(event.key==='Enter') submitLogin()" />
+            <button type="button" onclick="togglePasswordVisibility()" class="absolute right-2.5 top-2 text-slate-400 hover:text-slate-700">
+              <i data-lucide="eye" id="password-eye-icon" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error Banner -->
+      <div id="auth-error-banner" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+        <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i>
+        <span id="auth-error-msg">Incorrect password! Access denied.</span>
+      </div>
+
+      <!-- Quick Fill Helper Chips for Easy Evaluation -->
+      <div class="bg-purple-50/60 rounded-xl p-3 border border-purple-100 space-y-1.5">
+        <span class="text-[10px] text-purple-900 font-bold block uppercase tracking-wider">Demo Password Quick-Fill:</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="fillPassword('password123')" class="px-2.5 py-1 rounded-lg bg-white border border-purple-200 text-rathinam-purple text-[11px] font-bold hover:bg-purple-100">
+            Fill "password123" (Students, Owners, CR)
+          </button>
+          <button type="button" onclick="fillPassword('admin123')" class="px-2.5 py-1 rounded-lg bg-white border border-purple-200 text-rathinam-purple text-[11px] font-bold hover:bg-purple-100">
+            Fill "admin123" (Admin)
+          </button>
+        </div>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="flex items-center gap-2 pt-2">
+        <button id="auth-submit-btn" onclick="submitLogin()" class="flex-1 py-3 rounded-xl bg-rathinam-purple hover:bg-rathinam-purple-dark text-white font-extrabold text-xs sm:text-sm transition shadow flex items-center justify-center gap-2">
+          <i data-lucide="key" class="w-4 h-4"></i> Verify Password &amp; Log In
+        </button>
+        <button type="button" onclick="closeAuthModal()" class="px-4 py-3 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200">
+          Cancel
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Application Logic Scripts -->
+  <script src="/static/js/ws.js?v=2.0"></script>
+  <script src="/static/js/student.js?v=2.0"></script>
+  <script src="/static/js/owner.js?v=2.0"></script>
+  <script src="/static/js/cr.js?v=2.0"></script>
+  <script src="/static/js/admin.js?v=2.0"></script>
+  <script src="/static/js/app.js?v=2.0"></script>
+</body>
+</html>
